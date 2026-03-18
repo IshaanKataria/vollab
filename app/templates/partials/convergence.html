@@ -1,0 +1,85 @@
+<div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+    <div class="flex items-baseline justify-between mb-3">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">
+            Newton-Raphson Convergence
+        </p>
+        <span class="text-xs font-mono text-gray-400">
+            {{ option_type | capitalize }} K={{ "%.0f" % strike }}
+        </span>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mb-4 text-sm font-mono">
+        <div>
+            <span class="text-gray-500">Market: </span>
+            <span class="text-white">${{ "%.4f" % market_price }}</span>
+        </div>
+        <div>
+            <span class="text-gray-500">S: </span>
+            <span class="text-white">${{ "%.2f" % S }}</span>
+        </div>
+        <div>
+            <span class="text-gray-500">IV: </span>
+            {% if result.converged %}
+            <span class="text-profit">{{ "%.4f" % result.sigma }} ({{ "%.2f" % (result.sigma * 100) }}%)</span>
+            {% else %}
+            <span class="text-loss">Did not converge</span>
+            {% endif %}
+        </div>
+        <div>
+            <span class="text-gray-500">Iters: </span>
+            <span class="text-white">{{ result.iterations }}</span>
+        </div>
+    </div>
+
+    {% if result.steps %}
+    <div class="overflow-x-auto mb-4">
+        <table class="w-full text-xs font-mono">
+            <thead>
+                <tr class="border-b border-gray-700 text-gray-500">
+                    <th class="px-2 py-1 text-right">n</th>
+                    <th class="px-2 py-1 text-right">σ</th>
+                    <th class="px-2 py-1 text-right">BS(σ)</th>
+                    <th class="px-2 py-1 text-right">Error</th>
+                    <th class="px-2 py-1 text-right">Vega</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for step in result.steps %}
+                <tr class="border-b border-gray-800 {% if loop.last and result.converged %}text-profit{% endif %}">
+                    <td class="px-2 py-1 text-right">{{ step.iteration }}</td>
+                    <td class="px-2 py-1 text-right">{{ "%.6f" % step.sigma }}</td>
+                    <td class="px-2 py-1 text-right">{{ "%.4f" % step.bs_price }}</td>
+                    <td class="px-2 py-1 text-right">{{ "%.2e" % step.error }}</td>
+                    <td class="px-2 py-1 text-right">{{ "%.4f" % step.vega }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="convergence-chart" style="height: 200px;"></div>
+    <script>
+        (function() {
+            const errors = [{% for step in result.steps %}{{ step.error | abs }},{% endfor %}];
+            const iters = [{% for step in result.steps %}{{ step.iteration }},{% endfor %}];
+
+            Plotly.newPlot('convergence-chart', [{
+                x: iters,
+                y: errors,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#3b82f6', width: 2 },
+                marker: { size: 4 },
+            }], {
+                title: { text: '|Error| vs Iteration', font: { size: 12, color: '#9ca3af' } },
+                xaxis: { title: 'Iteration', color: '#6b7280', gridcolor: '#1f1f1f' },
+                yaxis: { title: '|Error|', type: 'log', color: '#6b7280', gridcolor: '#1f1f1f' },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: { t: 30, b: 40, l: 60, r: 10 },
+                font: { family: 'JetBrains Mono, monospace', size: 10, color: '#9ca3af' },
+            }, { displayModeBar: false, responsive: true });
+        })();
+    </script>
+    {% endif %}
+</div>

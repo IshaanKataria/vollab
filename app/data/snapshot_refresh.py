@@ -6,6 +6,7 @@ Usage: uv run refresh-snapshots
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -49,16 +50,32 @@ def _df_to_records(df) -> list[dict]:
     records = []
     for _, row in df.iterrows():
         records.append({
-            "strike": float(row.get("strike", 0)),
-            "lastPrice": float(row.get("lastPrice", 0)),
-            "bid": float(row.get("bid", 0)),
-            "ask": float(row.get("ask", 0)),
-            "volume": int(row.get("volume", 0) or 0),
-            "openInterest": int(row.get("openInterest", 0) or 0),
-            "impliedVolatility": float(row.get("impliedVolatility", 0)),
+            "strike": _safe_float(row.get("strike", 0)),
+            "lastPrice": _safe_float(row.get("lastPrice", 0)),
+            "bid": _safe_float(row.get("bid", 0)),
+            "ask": _safe_float(row.get("ask", 0)),
+            "volume": _safe_int(row.get("volume", 0)),
+            "openInterest": _safe_int(row.get("openInterest", 0)),
+            "impliedVolatility": _safe_float(row.get("impliedVolatility", 0)),
             "inTheMoney": bool(row.get("inTheMoney", False)),
         })
     return records
+
+
+def _safe_float(v) -> float:
+    try:
+        f = float(v)
+        return 0.0 if math.isnan(f) else f
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _safe_int(v) -> int:
+    try:
+        f = float(v)
+        return 0 if math.isnan(f) else int(f)
+    except (TypeError, ValueError):
+        return 0
 
 
 def main():
