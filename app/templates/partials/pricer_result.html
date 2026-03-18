@@ -1,0 +1,83 @@
+<div class="space-y-4">
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Prices</p>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p class="text-xs text-gray-500">Call</p>
+                <p class="text-2xl font-mono font-semibold text-white">{{ "%.6f" % result.call_price }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500">Put</p>
+                <p class="text-2xl font-mono font-semibold text-white">{{ "%.6f" % result.put_price }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Intermediates</p>
+        <div class="grid grid-cols-2 gap-3 font-mono text-sm">
+            <div>
+                <span class="text-gray-500">d1 = </span>
+                <span class="text-white">{{ "%.8f" % result.d1 }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">d2 = </span>
+                <span class="text-white">{{ "%.8f" % result.d2 }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Put-Call Parity</p>
+        <div class="font-mono text-sm space-y-1">
+            <p>
+                <span class="text-gray-500">C - P = </span>
+                <span class="text-white">{{ "%.8f" % result.parity_lhs }}</span>
+            </p>
+            <p>
+                <span class="text-gray-500">S - Ke<sup>-rT</sup> = </span>
+                <span class="text-white">{{ "%.8f" % result.parity_rhs }}</span>
+            </p>
+            <p class="pt-1">
+                <span class="text-gray-500">Residual = </span>
+                <span class="{% if result.parity_residual < 1e-10 %}text-profit{% else %}text-warn{% endif %}">
+                    {{ "%.2e" % result.parity_residual }}
+                </span>
+                {% if result.parity_residual < 1e-10 %}
+                <span class="text-profit text-xs ml-1">✓ verified</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">
+            Greeks ({{ option_type }})
+        </p>
+        <div class="grid grid-cols-2 gap-3 font-mono text-sm">
+            <div>
+                <span class="text-gray-500">Δ Delta = </span>
+                <span class="text-white">{{ "%.6f" % greeks.delta }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Γ Gamma = </span>
+                <span class="text-white">{{ "%.6f" % greeks.gamma }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Θ Theta = </span>
+                <span class="text-white">{{ "%.6f" % greeks.theta }}</span>
+                <span class="text-gray-600 text-xs">/day</span>
+            </div>
+            <div>
+                <span class="text-gray-500">ν Vega = </span>
+                <span class="text-white">{{ "%.6f" % greeks.vega }}</span>
+                <span class="text-gray-600 text-xs">/1%</span>
+            </div>
+            <div>
+                <span class="text-gray-500">ρ Rho = </span>
+                <span class="text-white">{{ "%.6f" % greeks.rho }}</span>
+                <span class="text-gray-600 text-xs">/1%</span>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}VolLab{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        surface: { DEFAULT: '#0f0f0f', light: '#1a1a1a', lighter: '#252525' },
+                        accent: '#3b82f6',
+                        profit: '#22c55e',
+                        loss: '#ef4444',
+                        warn: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.0.min.js" charset="utf-8"></script>
+
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .htmx-indicator { display: none; }
+        .htmx-request .htmx-indicator { display: inline-block; }
+        .htmx-request.htmx-indicator { display: inline-block; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-surface text-gray-200 min-h-screen flex flex-col">
+    <nav class="border-b border-gray-800 px-6 py-3">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <a href="/" class="text-lg font-semibold text-white tracking-tight">
+                <span class="text-accent">Vol</span>Lab
+            </a>
+            <div class="flex items-center gap-6 text-sm text-gray-400">
+                <a href="/" class="hover:text-white transition-colors {% block nav_home %}{% endblock %}">Home</a>
+                <a href="/pricer" class="hover:text-white transition-colors {% block nav_pricer %}{% endblock %}">Pricer</a>
+                <a href="/about" class="hover:text-white transition-colors {% block nav_about %}{% endblock %}">About</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="border-t border-gray-800 px-6 py-4 text-center text-xs text-gray-600">
+        VolLab — Options Pricing & Calibration Workbench
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

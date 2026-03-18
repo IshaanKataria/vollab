@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}VolLab — Options Pricing & Calibration Workbench{% endblock %}
+{% block nav_home %}text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto mt-16">
+    <h1 class="text-3xl font-bold text-white mb-2">
+        <span class="text-accent">Vol</span>Lab
+    </h1>
+    <p class="text-gray-400 mb-8 leading-relaxed">
+        Calibrate stochastic volatility models to real market data and see where
+        Black-Scholes breaks down. Every algorithm implemented from scratch.
+    </p>
+
+    <form action="/chain" method="get" class="mb-6">
+        <div class="flex gap-3">
+            <input
+                type="text"
+                name="ticker"
+                placeholder="Enter ticker (e.g. AAPL)"
+                class="flex-1 bg-surface-light border border-gray-700 rounded-lg px-4 py-3 text-white font-mono
+                       placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                autocomplete="off"
+                spellcheck="false"
+            >
+            <button
+                type="submit"
+                class="bg-accent hover:bg-blue-600 text-white font-medium px-6 py-3 rounded-lg transition-colors"
+            >
+                Analyse
+            </button>
+        </div>
+    </form>
+
+    <div class="mb-12">
+        <p class="text-xs text-gray-500 mb-3 uppercase tracking-wide">Pre-cached tickers</p>
+        <div class="flex flex-wrap gap-2">
+            {% for ticker in cached_tickers %}
+            <a
+                href="/chain?ticker={{ ticker }}"
+                class="px-3 py-1.5 bg-surface-light border border-gray-700 rounded-md text-sm font-mono
+                       text-gray-300 hover:border-accent hover:text-white transition-colors"
+            >
+                {{ ticker }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-16">
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Pricing</p>
+            <p class="text-sm text-gray-300">Black-Scholes + Heston stochastic vol, from scratch</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Calibration</p>
+            <p class="text-sm text-gray-300">Fit models to real market data, show where they break</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Vol Surface</p>
+            <p class="text-sm text-gray-300">SVI fitting with arbitrage-free constraints</p>
+        </div>
+    </div>
+
+    <div class="border-t border-gray-800 pt-8">
+        <h2 class="text-sm font-semibold text-white mb-4 uppercase tracking-wide">The Workflow</h2>
+        <div class="space-y-3 text-sm text-gray-400">
+            <div class="flex gap-3">
+                <span class="text-accent font-mono text-xs mt-0.5">01</span>
+                <span>Fetch real options chain data for any US equity</span>
+            </div>
+            <div class="flex gap-3">
+                <span class="text-accent font-mono text-xs mt-0.5">02</span>
+                <span>Extract implied volatilities using Newton-Raphson</span>
+            </div>
+            <div class="flex gap-3">
+                <span class="text-accent font-mono text-xs mt-0.5">03</span>
+                <span>Fit an SVI volatility surface with no-arbitrage constraints</span>
+            </div>
+            <div class="flex gap-3">
+                <span class="text-accent font-mono text-xs mt-0.5">04</span>
+                <span>Calibrate a Heston model to the surface</span>
+            </div>
+            <div class="flex gap-3">
+                <span class="text-accent font-mono text-xs mt-0.5">05</span>
+                <span>Compare model prices vs market — see where each model fails</span>
+            </div>
+            <div class="flex gap-3">
+                <span class="text-accent font-mono text-xs mt-0.5">06</span>
+                <span>Analyse Greeks: analytical vs finite differences, error analysis</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
