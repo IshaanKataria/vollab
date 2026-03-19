@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Greeks — {{ ticker }} — VolLab{% endblock %}
+
+{% block content %}
+<div>
+    {% if error %}
+    <div class="max-w-2xl mx-auto mt-12">
+        <div class="bg-surface-light border border-red-900 rounded-lg p-4 text-sm text-loss">{{ error }}</div>
+        <a href="/" class="text-accent text-sm mt-4 inline-block hover:underline">← Back to home</a>
+    </div>
+    {% else %}
+    <div class="flex items-baseline gap-4 mb-1">
+        <h1 class="text-2xl font-bold text-white font-mono">{{ ticker }}</h1>
+        <span class="text-sm text-gray-400">Greeks: Analytical vs Finite Differences</span>
+    </div>
+    <p class="text-xs text-gray-500 mb-6">
+        S={{ "%.2f" % S }} | K={{ "%.0f" % K }} | T={{ "%.4f" % T }}y | σ={{ "%.1f" % (sigma * 100) }}% | r={{ "%.1f" % (r * 100) }}%
+        | Expiry: {{ expiry }}
+    </p>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+        <div>
+            <p class="text-sm font-semibold text-white mb-3">Call Greeks</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs font-mono">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-500">
+                            <th class="px-3 py-2 text-left">Greek</th>
+                            <th class="px-3 py-2 text-right">BS Analytical</th>
+                            <th class="px-3 py-2 text-right">BS (FD)</th>
+                            <th class="px-3 py-2 text-right">Heston (FD)</th>
+                            <th class="px-3 py-2 text-right">|Err|</th>
+                            <th class="px-3 py-2 text-right">Rel %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in greeks_table %}
+                        <tr class="border-b border-gray-800">
+                            <td class="px-3 py-1.5 text-white">{{ row.symbol }} {{ row.name }}</td>
+                            <td class="px-3 py-1.5 text-right text-white">{{ "%.6f" % row.analytical }}</td>
+                            <td class="px-3 py-1.5 text-right">{{ "%.6f" % row.fd_bs }}</td>
+                            <td class="px-3 py-1.5 text-right text-accent">{{ "%.6f" % row.fd_heston }}</td>
+                            <td class="px-3 py-1.5 text-right {% if row.abs_error < 0.0001 %}text-profit{% else %}text-warn{% endif %}">
+                                {{ "%.2e" % row.abs_error }}
+                            </td>
+                            <td class="px-3 py-1.5 text-right {% if row.rel_error < 0.1 %}text-profit{% elif row.rel_error < 1 %}text-white{% else %}text-warn{% endif %}">
+                                {{ "%.4f" % row.rel_error }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div>
+            <p class="text-sm font-semibold text-white mb-3">Put Greeks</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs font-mono">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-500">
+                            <th class="px-3 py-2 text-left">Greek</th>
+                            <th class="px-3 py-2 text-right">BS Analytical</th>
+                            <th class="px-3 py-2 text-right">BS (FD)</th>
+                            <th class="px-3 py-2 text-right">Heston (FD)</th>
+                            <th class="px-3 py-2 text-right">|Err|</th>
+                            <th class="px-3 py-2 text-right">Rel %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in greeks_table_put %}
+                        <tr class="border-b border-gray-800">
+                            <td class="px-3 py-1.5 text-white">{{ row.symbol }} {{ row.name }}</td>
+                            <td class="px-3 py-1.5 text-right text-white">{{ "%.6f" % row.analytical }}</td>
+                            <td class="px-3 py-1.5 text-right">{{ "%.6f" % row.fd_bs }}</td>
+                            <td class="px-3 py-1.5 text-right text-accent">{{ "%.6f" % row.fd_heston }}</td>
+                            <td class="px-3 py-1.5 text-right {% if row.abs_error < 0.0001 %}text-profit{% else %}text-warn{% endif %}">
+                                {{ "%.2e" % row.abs_error }}
+                            </td>
+                            <td class="px-3 py-1.5 text-right {% if row.rel_error < 0.1 %}text-profit{% elif row.rel_error < 1 %}text-white{% else %}text-warn{% endif %}">
+                                {{ "%.4f" % row.rel_error }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div>
+            <p class="text-sm font-semibold text-white mb-2">Delta vs Underlying Price</p>
+            <div id="delta-chart" style="height: 280px;"></div>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-white mb-2">Gamma vs Underlying Price</p>
+            <div id="gamma-chart" style="height: 280px;"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div>
+            <p class="text-sm font-semibold text-white mb-2">Delta FD Error vs Step Size h</p>
+            <div id="delta-err-chart" style="height: 280px;"></div>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-white mb-2">Gamma FD Error vs Step Size h</p>
+            <div id="gamma-err-chart" style="height: 280px;"></div>
+        </div>
+    </div>
+
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4 text-xs text-gray-400 mb-4">
+        <p class="font-semibold text-gray-300 mb-1">Why this matters</p>
+        <p>BS has closed-form Greeks. Heston doesn't — finite differences are the only option.
+        The error analysis shows the V-shaped curve: too large h gives truncation error (O(h²) for central diff),
+        too small h gives floating-point cancellation error. Optimal h ≈ √ε · S where ε ≈ 2.2 × 10⁻¹⁶.
+        Comparing BS analytical vs FD validates the numerical method; then the same method applied to Heston
+        gives Greeks that can't be obtained any other way.</p>
+    </div>
+
+    <script>
+    const SRange = {{ S_range | safe }};
+    const deltaVsS = {{ delta_vs_S | safe }};
+    const gammaVsS = {{ gamma_vs_S | safe }};
+    const hestonDeltaVsS = {{ heston_delta_vs_S | safe }};
+    const deltaErrH = {{ delta_err_h | safe }};
+    const deltaErrVals = {{ delta_err_vals | safe }};
+    const gammaErrH = {{ gamma_err_h | safe }};
+    const gammaErrVals = {{ gamma_err_vals | safe }};
+
+    const layout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'JetBrains Mono', size: 10, color: '#9ca3af' },
+        margin: { t: 10, b: 40, l: 50, r: 10 },
+    };
+
+    // Delta vs S
+    Plotly.newPlot('delta-chart', [
+        { x: SRange, y: deltaVsS, mode: 'lines', line: { color: '#fff', width: 2 }, name: 'BS Δ' },
+        { x: SRange, y: hestonDeltaVsS, mode: 'lines', line: { color: '#3b82f6', width: 2, dash: 'dash' }, name: 'Heston Δ' },
+    ], {
+        ...layout,
+        xaxis: { title: 'S', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: 'Delta', color: '#6b7280', gridcolor: '#1f1f1f' },
+        legend: { x: 0.02, y: 0.98, bgcolor: 'rgba(0,0,0,0)' },
+        shapes: [{ type: 'line', x0: {{ K }}, x1: {{ K }}, y0: 0, y1: 1, line: { color: '#374151', dash: 'dot', width: 1 }}],
+    }, { displayModeBar: false, responsive: true });
+
+    // Gamma vs S
+    Plotly.newPlot('gamma-chart', [
+        { x: SRange, y: gammaVsS, mode: 'lines', line: { color: '#fff', width: 2 }, name: 'BS Γ' },
+    ], {
+        ...layout,
+        xaxis: { title: 'S', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: 'Gamma', color: '#6b7280', gridcolor: '#1f1f1f' },
+        shapes: [{ type: 'line', x0: {{ K }}, x1: {{ K }}, y0: 0, y1: Math.max(...gammaVsS) * 1.1, line: { color: '#374151', dash: 'dot', width: 1 }}],
+    }, { displayModeBar: false, responsive: true });
+
+    // Error vs h charts (log-log)
+    Plotly.newPlot('delta-err-chart', [
+        { x: deltaErrH, y: deltaErrVals, mode: 'lines+markers', line: { color: '#3b82f6', width: 2 }, marker: { size: 3 } },
+    ], {
+        ...layout,
+        xaxis: { title: 'Step size h', type: 'log', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: '|Analytical - FD|', type: 'log', color: '#6b7280', gridcolor: '#1f1f1f' },
+    }, { displayModeBar: false, responsive: true });
+
+    Plotly.newPlot('gamma-err-chart', [
+        { x: gammaErrH, y: gammaErrVals, mode: 'lines+markers', line: { color: '#22c55e', width: 2 }, marker: { size: 3 } },
+    ], {
+        ...layout,
+        xaxis: { title: 'Step size h', type: 'log', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: '|Analytical - FD|', type: 'log', color: '#6b7280', gridcolor: '#1f1f1f' },
+    }, { displayModeBar: false, responsive: true });
+    </script>
+    {% endif %}
+</div>
+{% endblock %}
