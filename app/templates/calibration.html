@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Calibration — {{ ticker }} — VolLab{% endblock %}
+
+{% block content %}
+<div>
+    {% if error %}
+    <div class="max-w-2xl mx-auto mt-12">
+        <div class="bg-surface-light border border-red-900 rounded-lg p-4 text-sm text-loss">{{ error }}</div>
+        <a href="/" class="text-accent text-sm mt-4 inline-block hover:underline">← Back to home</a>
+    </div>
+    {% else %}
+    <div class="flex items-baseline gap-4 mb-1">
+        <h1 class="text-2xl font-bold text-white font-mono">{{ ticker }}</h1>
+        <span class="text-sm text-gray-400">Heston Calibration</span>
+        <span class="text-xl font-mono text-gray-300">${{ "%.2f" % S }}</span>
+        {% if source == "cached" %}
+        <span class="text-xs text-warn bg-warn/10 px-2 py-0.5 rounded">Cached</span>
+        {% endif %}
+    </div>
+    <p class="text-xs text-gray-500 mb-6">
+        Fitted {{ result.n_options }} options in {{ "%.0f" % result.elapsed_ms }}ms
+        (differential evolution + L-BFGS-B refinement)
+    </p>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">v0</p>
+            <p class="text-base font-mono text-white">{{ "%.4f" % params.v0 }}</p>
+            <p class="text-xs text-gray-600">√v0 = {{ "%.1f" % (params.v0 ** 0.5 * 100) }}%</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">κ</p>
+            <p class="text-base font-mono text-white">{{ "%.4f" % params.kappa }}</p>
+            <p class="text-xs text-gray-600">mean rev</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">θ</p>
+            <p class="text-base font-mono text-white">{{ "%.4f" % params.theta }}</p>
+            <p class="text-xs text-gray-600">√θ = {{ "%.1f" % (params.theta ** 0.5 * 100) }}%</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">ξ</p>
+            <p class="text-base font-mono text-white">{{ "%.4f" % params.xi }}</p>
+            <p class="text-xs text-gray-600">vol of vol</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">ρ</p>
+            <p class="text-base font-mono text-white">{{ "%.4f" % params.rho }}</p>
+            <p class="text-xs text-gray-600">spot-vol corr</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">Feller</p>
+            <p class="text-base font-mono {% if params.feller_satisfied %}text-profit{% else %}text-warn{% endif %}">
+                {{ "%.3f" % params.feller_ratio }}
+            </p>
+            <p class="text-xs {% if params.feller_satisfied %}text-profit{% else %}text-warn{% endif %}">
+                {% if params.feller_satisfied %}satisfied{% else %}violated{% endif %}
+            </p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500">Improvement</p>
+            <p class="text-base font-mono {% if result.improvement_pct > 0 %}text-profit{% else %}text-loss{% endif %}">
+                {{ "%.1f" % result.improvement_pct }}%
+            </p>
+            <p class="text-xs text-gray-600">vs flat BS</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase">Heston RMSE (IV)</p>
+            <p class="text-xl font-mono text-accent">{{ "%.4f" % result.rmse_heston }}</p>
+            <p class="text-xs text-gray-500">{{ "%.2f" % (result.rmse_heston * 100) }}% vol points</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase">Flat BS RMSE (IV)</p>
+            <p class="text-xl font-mono text-gray-400">{{ "%.4f" % result.rmse_bs }}</p>
+            <p class="text-xs text-gray-500">{{ "%.2f" % (result.rmse_bs * 100) }}% vol points</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase">Options Calibrated</p>
+            <p class="text-xl font-mono text-white">{{ result.n_options }}</p>
+            <p class="text-xs text-gray-500">{{ "%.0f" % result.elapsed_ms }}ms total</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div>
+            <p class="text-sm font-semibold text-white mb-2">Model IV vs Market IV</p>
+            <div id="scatter-chart" style="height: 320px;"></div>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-white mb-2">Residuals vs Log-Moneyness</p>
+            <div id="residual-k-chart" style="height: 320px;"></div>
+        </div>
+    </div>
+
+    <div class="mb-8">
+        <p class="text-sm font-semibold text-white mb-2">Residuals vs Time to Expiry</p>
+        <div id="residual-t-chart" style="height: 280px;"></div>
+    </div>
+
+    <div class="overflow-x-auto mb-8">
+        <p class="text-sm font-semibold text-white mb-2">Per-Option Comparison</p>
+        <table class="w-full text-xs font-mono">
+            <thead>
+                <tr class="border-b border-gray-700 text-gray-500">
+                    <th class="px-2 py-2 text-left">Type</th>
+                    <th class="px-2 py-2 text-right">K</th>
+                    <th class="px-2 py-2 text-right">T</th>
+                    <th class="px-2 py-2 text-right">k</th>
+                    <th class="px-2 py-2 text-right">Mkt IV</th>
+                    <th class="px-2 py-2 text-right">BS IV</th>
+                    <th class="px-2 py-2 text-right">Heston IV</th>
+                    <th class="px-2 py-2 text-right">BS Err</th>
+                    <th class="px-2 py-2 text-right">Heston Err</th>
+                </tr>
+            </thead>
+            <tbody id="option-table"></tbody>
+        </table>
+    </div>
+
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4 text-xs text-gray-400 mb-4">
+        <p class="font-semibold text-gray-300 mb-1">The calibration story</p>
+        <p>Heston reduces RMSE by {{ "%.1f" % result.improvement_pct }}% compared to flat Black-Scholes.
+        {% if params.rho < -0.3 %}
+        The calibrated ρ = {{ "%.2f" % params.rho }} captures the equity skew — OTM puts are priced
+        higher than BS predicts, which matches the leverage effect observed in markets.
+        {% endif %}
+        {% if not params.feller_satisfied %}
+        Note: the Feller condition is violated (ratio {{ "%.2f" % params.feller_ratio }}), meaning the
+        variance process can touch zero. This is common in real calibrations and doesn't invalidate
+        the prices — it just means a more sophisticated discretization would be needed for MC simulation.
+        {% endif %}
+        </p>
+    </div>
+
+    <script>
+    const scatterMarket = {{ scatter_market | safe }};
+    const scatterHeston = {{ scatter_heston | safe }};
+    const scatterBS = {{ scatter_bs | safe }};
+    const residualK = {{ residual_k | safe }};
+    const residualHeston = {{ residual_heston | safe }};
+    const residualBS = {{ residual_bs | safe }};
+    const residualT = {{ residual_T | safe }};
+    const residualHestonT = {{ residual_heston_T | safe }};
+
+    const plotLayout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'JetBrains Mono', size: 10, color: '#9ca3af' },
+    };
+
+    // Scatter: model IV vs market IV
+    const maxIV = Math.max(...scatterMarket, ...scatterHeston) * 1.05;
+    const minIV = Math.min(...scatterMarket, ...scatterHeston) * 0.95;
+    Plotly.newPlot('scatter-chart', [
+        { x: scatterMarket, y: scatterHeston, mode: 'markers', type: 'scatter',
+          marker: { size: 5, color: '#3b82f6' }, name: 'Heston' },
+        { x: scatterMarket, y: scatterBS, mode: 'markers', type: 'scatter',
+          marker: { size: 4, color: '#6b7280', symbol: 'x' }, name: 'Flat BS' },
+        { x: [minIV, maxIV], y: [minIV, maxIV], mode: 'lines', type: 'scatter',
+          line: { color: '#374151', dash: 'dash', width: 1 }, name: '45°', showlegend: false },
+    ], {
+        ...plotLayout,
+        xaxis: { title: 'Market IV (%)', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: 'Model IV (%)', color: '#6b7280', gridcolor: '#1f1f1f' },
+        legend: { x: 0.02, y: 0.98, bgcolor: 'rgba(0,0,0,0)' },
+        margin: { t: 10, b: 40, l: 50, r: 10 },
+    }, { displayModeBar: false, responsive: true });
+
+    // Residuals vs moneyness
+    Plotly.newPlot('residual-k-chart', [
+        { x: residualK, y: residualHeston, mode: 'markers', type: 'scatter',
+          marker: { size: 5, color: '#3b82f6' }, name: 'Heston' },
+        { x: residualK, y: residualBS, mode: 'markers', type: 'scatter',
+          marker: { size: 4, color: '#6b7280', symbol: 'x' }, name: 'Flat BS' },
+        { x: [Math.min(...residualK), Math.max(...residualK)], y: [0, 0],
+          mode: 'lines', line: { color: '#374151', dash: 'dash', width: 1 }, showlegend: false },
+    ], {
+        ...plotLayout,
+        xaxis: { title: 'Log-Moneyness (k)', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: 'IV Error (%pts)', color: '#6b7280', gridcolor: '#1f1f1f' },
+        legend: { x: 0.02, y: 0.98, bgcolor: 'rgba(0,0,0,0)' },
+        margin: { t: 10, b: 40, l: 50, r: 10 },
+    }, { displayModeBar: false, responsive: true });
+
+    // Residuals vs T
+    Plotly.newPlot('residual-t-chart', [
+        { x: residualT, y: residualHestonT, mode: 'markers', type: 'scatter',
+          marker: { size: 5, color: '#3b82f6' }, name: 'Heston error' },
+        { x: [Math.min(...residualT), Math.max(...residualT)], y: [0, 0],
+          mode: 'lines', line: { color: '#374151', dash: 'dash', width: 1 }, showlegend: false },
+    ], {
+        ...plotLayout,
+        xaxis: { title: 'Time to Expiry (T)', color: '#6b7280', gridcolor: '#1f1f1f' },
+        yaxis: { title: 'Heston IV Error (%pts)', color: '#6b7280', gridcolor: '#1f1f1f' },
+        margin: { t: 10, b: 40, l: 50, r: 10 },
+        showlegend: false,
+    }, { displayModeBar: false, responsive: true });
+
+    // Per-option table via DOM
+    const perOption = {{ per_option | tojson | safe }};
+    const tbody = document.getElementById('option-table');
+    perOption.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-gray-800';
+
+        function td(text, cls) {
+            const el = document.createElement('td');
+            el.className = 'px-2 py-1 text-right ' + (cls || '');
+            el.textContent = text;
+            return el;
+        }
+        function fmtPct(v) { return v != null ? (v * 100).toFixed(2) + '%' : 'N/C'; }
+        function fmtErr(v) {
+            if (v == null) return 'N/C';
+            const pct = (v * 100).toFixed(2);
+            return (v >= 0 ? '+' : '') + pct;
+        }
+        function errCls(v) {
+            if (v == null) return 'text-gray-600';
+            return Math.abs(v) < 0.005 ? 'text-profit' : Math.abs(v) < 0.02 ? 'text-white' : 'text-warn';
+        }
+
+        const typeTd = td(row.type, 'text-left');
+        tr.appendChild(typeTd);
+        tr.appendChild(td(row.strike.toFixed(0)));
+        tr.appendChild(td(row.T.toFixed(4)));
+        tr.appendChild(td(row.log_moneyness.toFixed(3)));
+        tr.appendChild(td(fmtPct(row.market_iv), 'text-white'));
+        tr.appendChild(td(fmtPct(row.bs_iv)));
+        tr.appendChild(td(fmtPct(row.heston_iv), 'text-accent'));
+        tr.appendChild(td(fmtErr(row.bs_error), errCls(row.bs_error)));
+        tr.appendChild(td(fmtErr(row.heston_error), errCls(row.heston_error)));
+        tbody.appendChild(tr);
+    });
+    </script>
+    {% endif %}
+</div>
+{% endblock %}

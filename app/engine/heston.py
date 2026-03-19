@@ -119,12 +119,15 @@ def price(
     T: float,
     r: float,
     params: HestonParams,
+    fast: bool = False,
 ) -> HestonResult:
     """
     Price a European option under the Heston model via Fourier inversion.
 
     Call = S*P1 - K*e^(-rT)*P2
     Pj = 1/2 + 1/pi * integral_0^inf Re[e^(-i*phi*ln(K)) * fj(phi) / (i*phi)] dphi
+
+    Set fast=True for calibration (looser tolerance, lower integration limit).
     """
     if T <= 0:
         call = max(S - K, 0.0)
@@ -133,6 +136,11 @@ def price(
 
     log_K = math.log(K)
     total_abserr = 0.0
+
+    upper = 80 if fast else 200
+    epsabs = 1e-6 if fast else 1e-10
+    epsrel = 1e-6 if fast else 1e-10
+    limit = 80 if fast else 200
 
     probabilities = []
     for j in [1, 2]:
@@ -143,7 +151,7 @@ def price(
             val = np.exp(-1j * phi * log_K) * cf / (1j * phi)
             return float(val.real)
 
-        integral, abserr = quad(integrand, 0, 200, limit=200, epsabs=1e-10, epsrel=1e-10)
+        integral, abserr = quad(integrand, 0, upper, limit=limit, epsabs=epsabs, epsrel=epsrel)
         total_abserr += abserr
         P = 0.5 + (1.0 / math.pi) * integral
         P = max(0.0, min(1.0, P))  # clamp

@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.routes import chain, home, pricer, surface
+from app.routes import calibration, chain, home, pricer, surface
 
 SNAPSHOTS_DIR = Path(__file__).parent / "app" / "data" / "snapshots"
 
@@ -33,6 +33,7 @@ app.include_router(home.router)
 app.include_router(pricer.router)
 app.include_router(chain.router)
 app.include_router(surface.router)
+app.include_router(calibration.router)
 
 
 @app.get("/health")
