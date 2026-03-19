@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Vol Surface — {{ ticker }} — VolLab{% endblock %}
+
+{% block content %}
+<div>
+    {% if error %}
+    <div class="max-w-2xl mx-auto mt-12">
+        <div class="bg-surface-light border border-red-900 rounded-lg p-4 text-sm text-loss">{{ error }}</div>
+        <a href="/" class="text-accent text-sm mt-4 inline-block hover:underline">← Back to home</a>
+    </div>
+    {% else %}
+    <div class="flex items-baseline gap-4 mb-1">
+        <h1 class="text-2xl font-bold text-white font-mono">{{ ticker }}</h1>
+        <span class="text-sm text-gray-400">Implied Volatility Surface</span>
+        <span class="text-xl font-mono text-gray-300">${{ "%.2f" % S }}</span>
+        {% if source == "cached" %}
+        <span class="text-xs text-warn bg-warn/10 px-2 py-0.5 rounded">Cached</span>
+        {% endif %}
+    </div>
+    <p class="text-xs text-gray-500 mb-6">
+        SVI fit across {{ n_slices }} expiry slices. Rotate the 3D surface to explore.
+    </p>
+
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-6">
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500 uppercase">Total RMSE</p>
+            <p class="text-lg font-mono text-white">{{ total_rmse }}</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500 uppercase">Expiry Slices</p>
+            <p class="text-lg font-mono text-white">{{ n_slices }}</p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500 uppercase">Butterfly Violations</p>
+            <p class="text-lg font-mono {% if total_butterfly > 0 %}text-warn{% else %}text-profit{% endif %}">
+                {{ total_butterfly }}{% if total_butterfly == 0 %} ✓{% endif %}
+            </p>
+        </div>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-3">
+            <p class="text-xs text-gray-500 uppercase">Calendar Violations</p>
+            <p class="text-lg font-mono {% if calendar_violations > 0 %}text-warn{% else %}text-profit{% endif %}">
+                {{ calendar_violations }}{% if calendar_violations == 0 %} ✓{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="mb-4 flex gap-2">
+        <button onclick="toggleView('both')" id="btn-both"
+            class="px-3 py-1.5 text-xs rounded-md bg-accent text-white border border-accent">
+            Overlay
+        </button>
+        <button onclick="toggleView('raw')" id="btn-raw"
+            class="px-3 py-1.5 text-xs rounded-md bg-surface-light text-gray-400 border border-gray-700">
+            Raw IV Only
+        </button>
+        <button onclick="toggleView('fitted')" id="btn-fitted"
+            class="px-3 py-1.5 text-xs rounded-md bg-surface-light text-gray-400 border border-gray-700">
+            SVI Fitted Only
+        </button>
+    </div>
+
+    <div id="surface-3d" style="height: 500px;" class="mb-8"></div>
+
+    <h2 class="text-lg font-semibold text-white mb-4">Per-Expiry Smile Fits</h2>
+    <div id="slice-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8"></div>
+
+    <h2 class="text-lg font-semibold text-white mb-4">SVI Parameters</h2>
+    <div class="overflow-x-auto mb-8">
+        <table class="w-full text-xs font-mono">
+            <thead>
+                <tr class="border-b border-gray-700 text-gray-500">
+                    <th class="px-3 py-2 text-left">Expiry</th>
+                    <th class="px-3 py-2 text-right">T</th>
+                    <th class="px-3 py-2 text-right">a</th>
+                    <th class="px-3 py-2 text-right">b</th>
+                    <th class="px-3 py-2 text-right">ρ</th>
+                    <th class="px-3 py-2 text-right">m</th>
+                    <th class="px-3 py-2 text-right">σ</th>
+                    <th class="px-3 py-2 text-right">RMSE</th>
+                    <th class="px-3 py-2 text-right">Pts</th>
+                    <th class="px-3 py-2 text-right">Arb</th>
+                </tr>
+            </thead>
+            <tbody id="params-body"></tbody>
+        </table>
+    </div>
+
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4 text-xs text-gray-400 mb-4">
+        <p class="text-gray-500 uppercase tracking-wide mb-2 font-semibold">SVI Formula</p>
+        <p class="font-mono">w(k) = a + b · (ρ · (k - m) + √((k - m)² + σ²))</p>
+        <p class="mt-1">where k = log(K/F) is log-moneyness, w is total implied variance (σ²·T)</p>
+    </div>
+
+    <script>
+    const rawK = {{ raw_k | safe }};
+    const rawT = {{ raw_T | safe }};
+    const rawIV = {{ raw_iv | safe }};
+    const rawLabels = {{ raw_labels | safe }};
+    const meshK = {{ mesh_k | safe }};
+    const meshT = {{ mesh_T | safe }};
+    const meshIV = {{ mesh_iv | safe }};
+    const sliceCharts = {{ slice_charts | safe }};
+
+    const scatterTrace = {
+        x: rawK, y: rawT, z: rawIV,
+        mode: 'markers',
+        type: 'scatter3d',
+        marker: { size: 3, color: rawIV, colorscale: 'Viridis', opacity: 0.8 },
+        text: rawLabels,
+        hovertemplate: '%{text}<br>k=%{x:.3f}<br>T=%{y:.3f}<br>IV=%{z:.1f}%<extra></extra>',
+        name: 'Market IV',
+    };
+
+    const surfaceTrace = {
+        x: meshK, y: meshT, z: meshIV,
+        type: 'surface',
+        colorscale: 'Viridis',
+        opacity: 0.7,
+        showscale: false,
+        name: 'SVI Fit',
+        hovertemplate: 'k=%{x:.3f}<br>T=%{y:.3f}<br>IV=%{z:.1f}%<extra>SVI</extra>',
+    };
+
+    const layout3d = {
+        scene: {
+            xaxis: { title: 'Log-Moneyness (k)', color: '#6b7280', gridcolor: '#1f1f1f' },
+            yaxis: { title: 'Time to Expiry (T)', color: '#6b7280', gridcolor: '#1f1f1f' },
+            zaxis: { title: 'Implied Vol (%)', color: '#6b7280', gridcolor: '#1f1f1f' },
+            bgcolor: 'rgba(0,0,0,0)',
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { t: 10, b: 10, l: 10, r: 10 },
+        font: { family: 'JetBrains Mono, monospace', size: 10, color: '#9ca3af' },
+        showlegend: false,
+    };
+
+    Plotly.newPlot('surface-3d', [surfaceTrace, scatterTrace], layout3d,
+        { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['toImage'] });
+
+    function toggleView(mode) {
+        const update = {
+            'both': { visible: [true, true] },
+            'raw': { visible: [false, true] },
+            'fitted': { visible: [true, false] },
+        }[mode];
+        Plotly.restyle('surface-3d', { visible: update.visible });
+        ['both', 'raw', 'fitted'].forEach(m => {
+            const btn = document.getElementById('btn-' + m);
+            if (m === mode) {
+                btn.className = 'px-3 py-1.5 text-xs rounded-md bg-accent text-white border border-accent';
+            } else {
+                btn.className = 'px-3 py-1.5 text-xs rounded-md bg-surface-light text-gray-400 border border-gray-700';
+            }
+        });
+    }
+
+    // Per-slice 2D smile charts
+    const container = document.getElementById('slice-container');
+    sliceCharts.forEach((sc, i) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'bg-surface-light border border-gray-800 rounded-lg p-3';
+
+        const header = document.createElement('div');
+        header.className = 'flex justify-between items-baseline mb-1';
+        const expLabel = document.createElement('span');
+        expLabel.className = 'text-xs font-mono text-white';
+        expLabel.textContent = sc.expiry;
+        const statsLabel = document.createElement('span');
+        statsLabel.className = 'text-xs text-gray-500';
+        statsLabel.textContent = 'T=' + sc.T + ' | RMSE=' + sc.rmse;
+        header.appendChild(expLabel);
+        header.appendChild(statsLabel);
+        wrapper.appendChild(header);
+
+        const chartDiv = document.createElement('div');
+        chartDiv.id = 'slice-' + i;
+        chartDiv.style.height = '180px';
+        wrapper.appendChild(chartDiv);
+        container.appendChild(wrapper);
+
+        Plotly.newPlot('slice-' + i, [
+            {
+                x: sc.market_k, y: sc.market_iv,
+                mode: 'markers', type: 'scatter',
+                marker: { size: 5, color: '#3b82f6' },
+                name: 'Market',
+            },
+            {
+                x: sc.fitted_k, y: sc.fitted_iv,
+                mode: 'lines', type: 'scatter',
+                line: { color: '#22c55e', width: 2 },
+                name: 'SVI',
+            },
+        ], {
+            xaxis: { title: 'k', color: '#6b7280', gridcolor: '#1f1f1f' },
+            yaxis: { title: 'IV %', color: '#6b7280', gridcolor: '#1f1f1f' },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            margin: { t: 5, b: 35, l: 45, r: 5 },
+            font: { family: 'JetBrains Mono', size: 9, color: '#9ca3af' },
+            showlegend: false,
+        }, { displayModeBar: false, responsive: true });
+    });
+
+    // Params table via DOM
+    const tbody = document.getElementById('params-body');
+    sliceCharts.forEach(sc => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-gray-800';
+        const arbClass = sc.butterfly_violations > 0 ? 'text-warn' : 'text-profit';
+        const cells = [
+            { text: sc.expiry, align: 'left', cls: 'text-white' },
+            { text: sc.T },
+            { text: sc.params.a },
+            { text: sc.params.b },
+            { text: sc.params.rho },
+            { text: sc.params.m },
+            { text: sc.params.sigma },
+            { text: sc.rmse },
+            { text: String(sc.n_points) },
+            { text: String(sc.butterfly_violations), cls: arbClass },
+        ];
+        cells.forEach(c => {
+            const td = document.createElement('td');
+            td.className = 'px-3 py-1.5 ' + (c.align === 'left' ? 'text-left' : 'text-right') + ' ' + (c.cls || '');
+            td.textContent = c.text;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    </script>
+    {% endif %}
+</div>
+{% endblock %}
