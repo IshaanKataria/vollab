@@ -1,83 +1,124 @@
 <div class="space-y-4">
     <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
-        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Prices</p>
-        <div class="grid grid-cols-2 gap-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Price Comparison ({{ option_type }})</p>
+        <div class="grid grid-cols-2 gap-6">
             <div>
-                <p class="text-xs text-gray-500">Call</p>
-                <p class="text-2xl font-mono font-semibold text-white">{{ "%.6f" % result.call_price }}</p>
+                <p class="text-xs text-gray-500 mb-1">Black-Scholes</p>
+                <p class="text-2xl font-mono font-semibold text-white">
+                    {% if option_type == "call" %}{{ "%.6f" % bs.call_price }}{% else %}{{ "%.6f" % bs.put_price }}{% endif %}
+                </p>
             </div>
             <div>
-                <p class="text-xs text-gray-500">Put</p>
-                <p class="text-2xl font-mono font-semibold text-white">{{ "%.6f" % result.put_price }}</p>
+                <p class="text-xs text-gray-500 mb-1">Heston</p>
+                <p class="text-2xl font-mono font-semibold text-accent">
+                    {% if option_type == "call" %}{{ "%.6f" % heston.call_price }}{% else %}{{ "%.6f" % heston.put_price }}{% endif %}
+                </p>
+            </div>
+        </div>
+        {% set bs_val = bs.call_price if option_type == "call" else bs.put_price %}
+        {% set h_val = heston.call_price if option_type == "call" else heston.put_price %}
+        {% if bs_val > 0 %}
+        <div class="mt-2 text-xs font-mono text-gray-400">
+            Difference: {{ "%.6f" % (h_val - bs_val) }}
+            ({{ "%+.2f" % ((h_val - bs_val) / bs_val * 100) }}%)
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">All Prices</p>
+            <div class="font-mono text-sm space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">BS Call</span>
+                    <span class="text-white">{{ "%.6f" % bs.call_price }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">BS Put</span>
+                    <span class="text-white">{{ "%.6f" % bs.put_price }}</span>
+                </div>
+                <div class="border-t border-gray-800 pt-2 flex justify-between">
+                    <span class="text-gray-500">Heston Call</span>
+                    <span class="text-accent">{{ "%.6f" % heston.call_price }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Heston Put</span>
+                    <span class="text-accent">{{ "%.6f" % heston.put_price }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">BS Greeks ({{ option_type }})</p>
+            <div class="font-mono text-sm space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Δ Delta</span>
+                    <span class="text-white">{{ "%.6f" % greeks.delta }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Γ Gamma</span>
+                    <span class="text-white">{{ "%.6f" % greeks.gamma }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Θ Theta</span>
+                    <span class="text-white">{{ "%.6f" % greeks.theta }}<span class="text-gray-600 text-xs"> /day</span></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">ν Vega</span>
+                    <span class="text-white">{{ "%.6f" % greeks.vega }}<span class="text-gray-600 text-xs"> /1%</span></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">ρ Rho</span>
+                    <span class="text-white">{{ "%.6f" % greeks.rho }}<span class="text-gray-600 text-xs"> /1%</span></span>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
-        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Intermediates</p>
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">BS Intermediates + Parity</p>
         <div class="grid grid-cols-2 gap-3 font-mono text-sm">
             <div>
                 <span class="text-gray-500">d1 = </span>
-                <span class="text-white">{{ "%.8f" % result.d1 }}</span>
+                <span class="text-white">{{ "%.8f" % bs.d1 }}</span>
             </div>
             <div>
                 <span class="text-gray-500">d2 = </span>
-                <span class="text-white">{{ "%.8f" % result.d2 }}</span>
+                <span class="text-white">{{ "%.8f" % bs.d2 }}</span>
             </div>
+        </div>
+        <div class="font-mono text-sm mt-2">
+            <span class="text-gray-500">Parity residual = </span>
+            <span class="{% if bs.parity_residual < 1e-10 %}text-profit{% else %}text-warn{% endif %}">
+                {{ "%.2e" % bs.parity_residual }}
+            </span>
+            {% if bs.parity_residual < 1e-10 %}
+            <span class="text-profit text-xs ml-1">✓</span>
+            {% endif %}
         </div>
     </div>
 
     <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
-        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Put-Call Parity</p>
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Heston Diagnostics</p>
         <div class="font-mono text-sm space-y-1">
-            <p>
-                <span class="text-gray-500">C - P = </span>
-                <span class="text-white">{{ "%.8f" % result.parity_lhs }}</span>
-            </p>
-            <p>
-                <span class="text-gray-500">S - Ke<sup>-rT</sup> = </span>
-                <span class="text-white">{{ "%.8f" % result.parity_rhs }}</span>
-            </p>
-            <p class="pt-1">
-                <span class="text-gray-500">Residual = </span>
-                <span class="{% if result.parity_residual < 1e-10 %}text-profit{% else %}text-warn{% endif %}">
-                    {{ "%.2e" % result.parity_residual }}
+            <div class="flex justify-between">
+                <span class="text-gray-500">Integration error</span>
+                <span class="text-white">{{ "%.2e" % heston.integration_abserr }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-500">Feller (2κθ/ξ²)</span>
+                <span class="{% if heston_params.feller_satisfied %}text-profit{% else %}text-warn{% endif %}">
+                    {{ "%.3f" % heston_params.feller_ratio }}
+                    {% if heston_params.feller_satisfied %}✓{% else %}violated{% endif %}
                 </span>
-                {% if result.parity_residual < 1e-10 %}
-                <span class="text-profit text-xs ml-1">✓ verified</span>
-                {% endif %}
-            </p>
+            </div>
         </div>
     </div>
 
-    <div class="bg-surface-light border border-gray-800 rounded-lg p-4">
-        <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">
-            Greeks ({{ option_type }})
-        </p>
-        <div class="grid grid-cols-2 gap-3 font-mono text-sm">
-            <div>
-                <span class="text-gray-500">Δ Delta = </span>
-                <span class="text-white">{{ "%.6f" % greeks.delta }}</span>
-            </div>
-            <div>
-                <span class="text-gray-500">Γ Gamma = </span>
-                <span class="text-white">{{ "%.6f" % greeks.gamma }}</span>
-            </div>
-            <div>
-                <span class="text-gray-500">Θ Theta = </span>
-                <span class="text-white">{{ "%.6f" % greeks.theta }}</span>
-                <span class="text-gray-600 text-xs">/day</span>
-            </div>
-            <div>
-                <span class="text-gray-500">ν Vega = </span>
-                <span class="text-white">{{ "%.6f" % greeks.vega }}</span>
-                <span class="text-gray-600 text-xs">/1%</span>
-            </div>
-            <div>
-                <span class="text-gray-500">ρ Rho = </span>
-                <span class="text-white">{{ "%.6f" % greeks.rho }}</span>
-                <span class="text-gray-600 text-xs">/1%</span>
-            </div>
-        </div>
+    <div class="bg-surface-light border border-gray-800 rounded-lg p-4 text-xs text-gray-500">
+        <p class="font-semibold text-gray-400 mb-1">Why the prices differ</p>
+        <p>BS assumes constant volatility σ. Heston models volatility as a stochastic process
+        with mean reversion (κ), long-run level (θ), vol-of-vol (ξ), and spot-vol correlation (ρ).
+        When ρ &lt; 0, Heston produces a left skew — OTM puts are priced higher than BS predicts.</p>
     </div>
 </div>

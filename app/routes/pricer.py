@@ -2,6 +2,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app.engine import black_scholes as bs
+from app.engine.heston import HestonParams, price as heston_price
 
 router = APIRouter(prefix="/pricer")
 
@@ -21,16 +22,28 @@ async def compute(
     r: float = Form(...),
     sigma: float = Form(...),
     option_type: str = Form("call"),
+    v0: float = Form(0.04),
+    kappa: float = Form(2.0),
+    theta: float = Form(0.04),
+    xi: float = Form(0.5),
+    rho: float = Form(-0.7),
 ):
     templates = request.app.state.templates
     try:
-        result = bs.price(S, K, T, r, sigma)
+        bs_result = bs.price(S, K, T, r, sigma)
         greeks = bs.greeks(S, K, T, r, sigma, option_type)
+
+        heston_params = HestonParams(v0=v0, kappa=kappa, theta=theta, xi=xi, rho=rho)
+        heston_result = heston_price(S, K, T, r, heston_params)
+
         return templates.TemplateResponse("partials/pricer_result.html", {
             "request": request,
-            "result": result,
+            "bs": bs_result,
+            "heston": heston_result,
             "greeks": greeks,
             "option_type": option_type,
+            "heston_params": heston_params,
+            "S": S, "K": K, "T": T, "r": r, "sigma": sigma,
         })
     except ValueError as e:
         return HTMLResponse(
