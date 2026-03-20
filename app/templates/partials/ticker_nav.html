@@ -1,0 +1,10 @@
+<div class="border-b border-gray-800/50 px-6 py-2 bg-surface-light/30">
+    <div class="max-w-6xl mx-auto flex items-center gap-4 text-xs">
+        <span class="font-mono text-white font-semibold">{{ ticker }}</span>
+        <span class="text-gray-700">|</span>
+        <a href="/chain?ticker={{ ticker }}" class="{% if active == 'chain' %}text-accent{% else %}text-gray-500 hover:text-white{% endif %} transition-colors">Chain</a>
+        <a href="/surface/{{ ticker }}" class="{% if active == 'surface' %}text-accent{% else %}text-gray-500 hover:text-white{% endif %} transition-colors">Surface</a>
+        <a href="/calibration/{{ ticker }}" class="{% if active == 'calibration' %}text-accent{% else %}text-gray-500 hover:text-white{% endif %} transition-colors">Calibration</a>
+        <a href="/greeks/{{ ticker }}" class="{% if active == 'greeks' %}text-accent{% else %}text-gray-500 hover:text-white{% endif %} transition-colors">Greeks</a>
+    </div>
+</div>

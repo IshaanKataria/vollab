@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Calibration — {{ ticker }} — VolLab{% endblock %}
+{% block ticker_nav %}{% if not error %}{% with active="calibration" %}{% include "partials/ticker_nav.html" %}{% endwith %}{% endif %}{% endblock %}
 
 {% block content %}
 <div>

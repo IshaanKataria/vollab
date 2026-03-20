@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ ticker or "Chain" }} — VolLab{% endblock %}
+{% block ticker_nav %}{% if ticker and data %}{% with active="chain" %}{% include "partials/ticker_nav.html" %}{% endwith %}{% endif %}{% endblock %}
 
 {% block content %}
 <div>

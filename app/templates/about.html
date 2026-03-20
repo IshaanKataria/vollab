@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}About — VolLab{% endblock %}
+{% block nav_about %}text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold text-white mb-2">Technical Notes</h1>
+    <p class="text-sm text-gray-500 mb-10">
+        Every pricing algorithm in VolLab is implemented from scratch. This page documents the
+        math, the implementation decisions, and the limitations of each module.
+    </p>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">From Scratch vs Library</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm font-mono">
+                <thead>
+                    <tr class="border-b border-gray-700 text-gray-500 text-xs">
+                        <th class="px-3 py-2 text-left">Component</th>
+                        <th class="px-3 py-2 text-left">Implementation</th>
+                        <th class="px-3 py-2 text-left">Why</th>
+                    </tr>
+                </thead>
+                <tbody class="text-xs">
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Normal CDF</td>
+                        <td class="px-3 py-2 text-profit">From scratch (math.erf)</td>
+                        <td class="px-3 py-2 text-gray-400">Avoids scipy.stats dependency for core pricing</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Black-Scholes pricing</td>
+                        <td class="px-3 py-2 text-profit">From scratch</td>
+                        <td class="px-3 py-2 text-gray-400">The foundation — must understand every step</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Analytical Greeks</td>
+                        <td class="px-3 py-2 text-profit">From scratch</td>
+                        <td class="px-3 py-2 text-gray-400">Closed-form partial derivatives of BS</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Newton-Raphson IV solver</td>
+                        <td class="px-3 py-2 text-profit">From scratch</td>
+                        <td class="px-3 py-2 text-gray-400">Uses vega for quadratic convergence</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">SVI parameterization</td>
+                        <td class="px-3 py-2 text-profit">From scratch</td>
+                        <td class="px-3 py-2 text-gray-400">Formula, derivatives, arbitrage checks all hand-coded</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Heston char. function</td>
+                        <td class="px-3 py-2 text-profit">From scratch</td>
+                        <td class="px-3 py-2 text-gray-400">Corrected formulation (Albrecher 2006)</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Finite difference Greeks</td>
+                        <td class="px-3 py-2 text-profit">From scratch</td>
+                        <td class="px-3 py-2 text-gray-400">Central differences, model-agnostic</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">SVI fitting (optimization)</td>
+                        <td class="px-3 py-2 text-gray-400">scipy.optimize.minimize</td>
+                        <td class="px-3 py-2 text-gray-400">L-BFGS-B is a generic optimizer — reimplementing it adds no insight</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Heston integration</td>
+                        <td class="px-3 py-2 text-gray-400">scipy.integrate.quad</td>
+                        <td class="px-3 py-2 text-gray-400">Adaptive quadrature is a solved problem</td>
+                    </tr>
+                    <tr class="border-b border-gray-800">
+                        <td class="px-3 py-2 text-white">Calibration (DE + L-BFGS-B)</td>
+                        <td class="px-3 py-2 text-gray-400">scipy.optimize</td>
+                        <td class="px-3 py-2 text-gray-400">Global + local optimization — the objective function is custom</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Module 1: Black-Scholes</h2>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4 mb-3 font-mono text-xs text-gray-300">
+            <p>d1 = [ln(S/K) + (r + σ²/2)·T] / (σ·√T)</p>
+            <p>d2 = d1 - σ·√T</p>
+            <p>C = S·N(d1) - K·e^(-rT)·N(d2)</p>
+            <p>P = K·e^(-rT)·N(-d2) - S·N(-d1)</p>
+            <p class="text-gray-500 mt-1">N(x) = 0.5·(1 + erf(x/√2))</p>
+        </div>
+        <p class="text-sm text-gray-400 mb-2">
+            The normal CDF is computed via the error function rather than importing scipy.stats.norm.
+            Edge cases handled: T=0 returns intrinsic value, σ=0 returns discounted intrinsic, deep
+            ITM/OTM are clamped to avoid numerical overflow.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            <span class="text-gray-500">Limitations:</span> Assumes constant volatility (the whole
+            point of the subsequent modules is to relax this assumption), European exercise only,
+            no dividends.
+        </p>
+        <p class="text-xs text-gray-600">Reference: Black & Scholes (1973), Hull Ch. 15</p>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Module 2: Implied Volatility (Newton-Raphson)</h2>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4 mb-3 font-mono text-xs text-gray-300">
+            <p>σ_{n+1} = σ_n - (BS(σ_n) - P_market) / vega(σ_n)</p>
+            <p class="text-gray-500 mt-1">Initial guess: Brenner-Subrahmanyam — σ_0 ≈ √(2π/T) · P/S</p>
+        </div>
+        <p class="text-sm text-gray-400 mb-2">
+            Newton-Raphson is chosen over Brent's method because vega (the analytical derivative)
+            is already available from Module 1, giving quadratic convergence for free. ATM options
+            typically converge in 3-5 iterations.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            For deep OTM options, the Brenner-Subrahmanyam guess can be too low, leading to near-zero
+            vega and solver stagnation. The implementation uses multiple starting guesses (0.50, 0.20, 1.00
+            as fallbacks) to handle this robustly.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            <span class="text-gray-500">Limitations:</span> Can fail for options priced below intrinsic
+            value (arbitrage condition — returns NaN rather than a nonsensical IV).
+        </p>
+        <p class="text-xs text-gray-600">Reference: Brenner & Subrahmanyam (1988)</p>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Module 3: SVI Volatility Surface</h2>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4 mb-3 font-mono text-xs text-gray-300">
+            <p>w(k) = a + b·(ρ·(k - m) + √((k - m)² + σ²))</p>
+            <p class="text-gray-500 mt-1">k = log(K/F), w = total implied variance = σ_iv² · T</p>
+            <p class="text-gray-500">5 params per slice: a (level), b (wings), ρ (skew), m (shift), σ (curvature)</p>
+        </div>
+        <p class="text-sm text-gray-400 mb-2">
+            Gatheral's SVI is chosen over SABR because it's the industry standard for equity
+            index options and has analytically tractable no-arbitrage conditions. Fitting is
+            non-convex, so 10 random starting points are used with the best result selected.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            Butterfly arbitrage is checked via the implied density condition (Gatheral & Jacquier 2014).
+            Calendar arbitrage is checked by verifying total variance is non-decreasing in T.
+            Violations are displayed explicitly rather than hidden — showing awareness of the problem
+            is more valuable than pretending it doesn't exist.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            <span class="text-gray-500">Limitations:</span> SVI is fit per-slice independently,
+            then calendar arbitrage is checked post-hoc. A joint surface fit (SSVI) would enforce
+            calendar constraints during fitting but adds significant complexity. The raw least-squares
+            objective can produce surfaces with butterfly violations in the wings — constrained
+            optimization or Sobol starting points would improve robustness.
+        </p>
+        <p class="text-xs text-gray-600">Reference: Gatheral (2004), Gatheral & Jacquier (2014)</p>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Module 4: Heston Stochastic Volatility</h2>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4 mb-3 font-mono text-xs text-gray-300">
+            <p>dS = r·S·dt + √v·S·dW₁</p>
+            <p>dv = κ·(θ - v)·dt + ξ·√v·dW₂</p>
+            <p>corr(dW₁, dW₂) = ρ</p>
+            <p class="text-gray-500 mt-1">Pricing: C = S·P₁ - K·e^(-rT)·P₂ via Fourier inversion of the char. function</p>
+        </div>
+        <p class="text-sm text-gray-400 mb-2">
+            The implementation uses the corrected formulation from Albrecher, Mayer & Schoutens (2006)
+            — the "little Heston trap." The original Heston (1993) formulation has a branch cut
+            discontinuity in the complex logarithm that causes numerical instability for certain
+            parameter regimes. The corrected version rotates the complex square root to eliminate this.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            The Feller condition (2κθ > ξ²) ensures the variance process stays strictly positive.
+            When violated, variance can touch zero — this is common in real calibrations and doesn't
+            invalidate prices, but would require careful treatment in Monte Carlo simulation
+            (e.g., full truncation or QE scheme).
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            <span class="text-gray-500">Limitations:</span> Single-factor stochastic vol — can't capture
+            the steep short-dated smile observed in markets. Extensions: add jumps (Bates model),
+            rough volatility (fractional kernel), or local-stochastic vol (LSV) hybrid.
+        </p>
+        <p class="text-xs text-gray-600">Reference: Heston (1993), Albrecher et al. (2006)</p>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Module 5: Model Calibration</h2>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4 mb-3 font-mono text-xs text-gray-300">
+            <p>min_{v0,κ,θ,ξ,ρ} Σᵢ (σ_heston(Kᵢ,Tᵢ; params) - σ_market(Kᵢ,Tᵢ))²</p>
+            <p class="text-gray-500 mt-1">Stage 1: Differential evolution (global search)</p>
+            <p class="text-gray-500">Stage 2: L-BFGS-B (local refinement)</p>
+        </div>
+        <p class="text-sm text-gray-400 mb-2">
+            Calibration minimizes the sum of squared IV errors between Heston-implied vols and
+            market-observed vols. The objective is computed in IV space (not price space) because
+            IV errors are more interpretable and give equal weight across strikes.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            Differential evolution is used for the global search because the objective is non-convex
+            with many local minima. L-BFGS-B then refines the best result. A soft penalty encourages
+            the Feller condition without hard-constraining it (many real calibrations violate Feller).
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            <span class="text-gray-500">Limitations:</span> The IV-space objective requires
+            inverting each Heston price through BS (expensive). A price-space objective with
+            vega weighting would be faster. The calibrated parameters are point estimates with
+            no uncertainty quantification — bootstrap or MCMC would give confidence intervals.
+        </p>
+        <p class="text-xs text-gray-600">Reference: Gatheral "The Volatility Surface" Ch. 3</p>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Module 6: Greeks — Analytical vs Finite Differences</h2>
+        <div class="bg-surface-light border border-gray-800 rounded-lg p-4 mb-3 font-mono text-xs text-gray-300">
+            <p>Central difference: df/dx ≈ (f(x+h) - f(x-h)) / (2h)   — O(h²) truncation error</p>
+            <p>Second derivative: d²f/dx² ≈ (f(x+h) - 2f(x) + f(x-h)) / h²</p>
+            <p class="text-gray-500 mt-1">Optimal h ≈ √ε · S where ε ≈ 2.2 × 10⁻¹⁶ (machine epsilon)</p>
+        </div>
+        <p class="text-sm text-gray-400 mb-2">
+            BS has closed-form Greeks. Heston doesn't — finite differences are the only practical
+            option (automatic differentiation is an alternative but adds complexity). The error
+            analysis chart shows the V-shaped tradeoff: too large h gives O(h²) truncation error,
+            too small h gives floating-point cancellation error from subtracting nearly equal numbers.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            Comparing BS analytical vs BS finite differences validates the numerical method. The
+            same validated method applied to Heston then gives Greeks that can't be obtained analytically.
+        </p>
+        <p class="text-sm text-gray-400 mb-2">
+            <span class="text-gray-500">Limitations:</span> Central differences require 2 function
+            evaluations per Greek (4 for Gamma). For Heston, each evaluation involves numerical
+            integration, making this expensive. Adjoint algorithmic differentiation (AAD) would be
+            the production approach for computing Greeks on a large book.
+        </p>
+        <p class="text-xs text-gray-600">Reference: Hull Ch. 19, Glasserman "Monte Carlo Methods" Ch. 7</p>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">What I'd Do Differently</h2>
+        <div class="text-sm text-gray-400 space-y-2">
+            <p>SVI fitting is sensitive to initial conditions — I'd explore quasi-random Sobol sequences
+            for starting points instead of pseudo-random, and consider SSVI (Surface SVI) for joint
+            cross-expiry fitting with built-in calendar arbitrage constraints.</p>
+            <p>The calibration objective works in IV space, requiring a BS inversion for every Heston
+            price. A price-space objective with vega weighting would halve the computation cost.</p>
+            <p>The Heston characteristic function integration uses scipy.integrate.quad (adaptive Gauss-Kronrod).
+            Gauss-Laguerre quadrature with ~32 nodes would be significantly faster for production use
+            since the integrand decays exponentially.</p>
+            <p>For Greeks, AAD (adjoint algorithmic differentiation) via a library like JAX would compute
+            all Greeks in one backward pass rather than 2N forward evaluations for N Greeks.</p>
+        </div>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-lg font-semibold text-white mb-4">Extensions I'd Explore</h2>
+        <div class="text-sm text-gray-400 space-y-2">
+            <p><span class="text-white">Rough volatility:</span> Replace the Brownian motion driving
+            variance with a fractional Brownian motion (H &lt; 0.5). The rough Bergomi model better
+            captures the short-dated smile steepness that Heston misses.</p>
+            <p><span class="text-white">Jump-diffusion (Bates):</span> Add a Poisson jump process to
+            the spot dynamics. Captures sudden large moves that diffusion models underestimate.</p>
+            <p><span class="text-white">Local-stochastic vol (LSV):</span> Combine a local volatility
+            function with Heston stochastic vol. The industry standard for exotic pricing — perfectly
+            calibrates to vanillas while maintaining realistic dynamics.</p>
+            <p><span class="text-white">Monte Carlo with variance reduction:</span> Antithetic variates,
+            control variates (BS as control), and quasi-Monte Carlo (Sobol sequences) for pricing
+            path-dependent exotics under calibrated Heston.</p>
+        </div>
+    </section>
+
+    <section class="mb-8">
+        <h2 class="text-lg font-semibold text-white mb-4">References</h2>
+        <div class="text-sm text-gray-400 space-y-1">
+            <p>Black, F. & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities." JPE.</p>
+            <p>Heston, S. (1993). "A Closed-Form Solution for Options with Stochastic Volatility." RFS.</p>
+            <p>Gatheral, J. (2004). "A parsimonious arbitrage-free implied volatility parameterization with application to the valuation of volatility derivatives."</p>
+            <p>Albrecher, H., Mayer, P. & Schoutens, W. (2006). "The Little Heston Trap." Wilmott Magazine.</p>
+            <p>Gatheral, J. & Jacquier, A. (2014). "Arbitrage-free SVI volatility surfaces." Quantitative Finance.</p>
+            <p>Brenner, M. & Subrahmanyam, M. (1988). "A Simple Formula to Compute the Implied Standard Deviation." FAJ.</p>
+            <p>Hull, J. "Options, Futures, and Other Derivatives." (general reference)</p>
+            <p>Glasserman, P. "Monte Carlo Methods in Financial Engineering." (numerical methods reference)</p>
+        </div>
+    </section>
+</div>
+{% endblock %}
